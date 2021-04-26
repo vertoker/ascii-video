@@ -1,6 +1,6 @@
 import cv2, time, sys, os, pickle
 import pygame, fpstimer, argparse
-import pathlib
+import pathlib, threading
 from multiprocessing import Process
 import moviepy.editor as mp
 from PIL import Image
@@ -12,6 +12,15 @@ from tkinter.font import Font
 from tkinter.filedialog import askopenfilename
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
+current_frame = 0
+is_playing = True
+
+def timer_thread():
+    global current_frame
+    timer = fpstimer.FPSTimer(30)
+    while (is_playing):
+        current_frame += 1
+        timer.sleep()
 
 def load_file(path):
     with open(path, "rb") as fp:
@@ -24,13 +33,8 @@ def delete_window():
     exit()
 
 def main(path):#903 586
-    current_frame = 0
-    is_playing = True
+    global is_playing, current_frame
     font_size = 8
-
-    def pause():
-        global is_playing
-        is_playing = not is_playing
 
     data = load_file(path)
     frames_counter = data[0][0]
@@ -47,27 +51,39 @@ def main(path):#903 586
     theme = ttk.Style()
     theme.theme_use("alt")
 
-    control_panel = ttk.Frame(base)
     text_box = tk.Text(width = screen_width, height = screen_height, bg = "black", fg = "white", font = ("Consolas", font_size))
-    pause_but = ttk.Button(control_panel, text="Pause", command=pause)
-
-    pause_but.pack(side = tk.LEFT)
-    control_panel.pack(side = tk.BOTTOM)
     text_box.pack()
 
+    # audio and video init
     pygame.init()
     pygame.mixer.pre_init(44100, -16, 2, 2048)
     pygame.mixer.init()
     sound = pygame.sndarray.make_sound(data[2])
-    sound.play()
 
-    timer = fpstimer.FPSTimer(30)
-    while (is_playing):
-        text_box.delete("1.0", tk.END)
-        text_box.insert("1.0", data[1][current_frame])
-        current_frame += 1
-        base.update()
-        timer.sleep()
+    def main_thread():
+        timer = fpstimer.FPSTimer(30)
+        while (is_playing):
+            text_box.delete("1.0", tk.END)
+            text_box.insert("1.0", data[1][current_frame])
+            base.update()
+            timer.sleep()
+    def pause():
+        if is_playing:
+            is_playing = False
+            video.stop()
+        else:
+            is_playing = True
+            video.start()
+
+    control_panel = ttk.Frame(base)
+    pause_but = ttk.Button(control_panel, text="Pause", command=pause)
+    pause_but.pack(side = tk.LEFT)
+    control_panel.pack(side = tk.BOTTOM)
+    timer = threading.Thread(target = timer_thread)
+    # start
+    sound.play()
+    timer.start()
+    main_thread()
 
 #"""
 if __name__ == '__main__':
