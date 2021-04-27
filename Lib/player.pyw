@@ -1,6 +1,6 @@
 import cv2, time, sys, os, pickle
 import pygame, fpstimer, argparse
-import pathlib, threading
+import pathlib, threading, pyperclip
 from multiprocessing import Process
 import moviepy.editor as mp
 from PIL import Image
@@ -18,8 +18,9 @@ is_playing = True
 def timer_thread():
     global current_frame
     timer = fpstimer.FPSTimer(30)
-    while (is_playing):
-        current_frame += 1
+    while (True):
+        if is_playing:
+            current_frame += 1
         timer.sleep()
 
 def load_file(path):
@@ -52,36 +53,48 @@ def main(path):#903 586
     theme.theme_use("alt")
 
     text_box = tk.Text(width = screen_width, height = screen_height, bg = "black", fg = "white", font = ("Consolas", font_size))
-    text_box.pack()
+    control_panel = ttk.Frame(base)
+    pause_but = ttk.Button(control_panel, text="Pause")
+    copy_but = ttk.Button(control_panel, text="Copy")
 
     # audio and video init
     pygame.init()
-    pygame.mixer.pre_init(44100, -16, 2, 2048)
     pygame.mixer.init()
     sound = pygame.sndarray.make_sound(data[2])
+    pygame.mixer.music = sound
 
     def main_thread():
+        global is_playing
         timer = fpstimer.FPSTimer(30)
-        while (is_playing):
-            text_box.delete("1.0", tk.END)
-            text_box.insert("1.0", data[1][current_frame])
+        while (True):
+            if is_playing:
+                text_box.delete("1.0", tk.END)
+                text_box.insert("1.0", data[1][current_frame])
             base.update()
             timer.sleep()
     def pause():
+        global is_playing
         if is_playing:
             is_playing = False
-            video.stop()
+            pygame.mixer.pause()
+            pause_but['text'] = 'Play'
         else:
             is_playing = True
-            video.start()
+            pygame.mixer.unpause()
+            pause_but['text'] = 'Pause'
+    def copy():
+        pyperclip.copy(data[1][current_frame])
 
-    control_panel = ttk.Frame(base)
-    pause_but = ttk.Button(control_panel, text="Pause", command=pause)
-    pause_but.pack(side = tk.LEFT)
+    pause_but['command'] = pause
+    copy_but['command'] = copy
     control_panel.pack(side = tk.BOTTOM)
+    pause_but.pack(side = tk.LEFT)
+    copy_but.pack(side = tk.LEFT)
+    text_box.pack()
+    copy_but.pack()
     timer = threading.Thread(target = timer_thread)
     # start
-    sound.play()
+    pygame.mixer.music.play()
     timer.start()
     main_thread()
 
